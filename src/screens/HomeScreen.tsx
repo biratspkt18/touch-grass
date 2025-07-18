@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, SafeAreaView, Button } from 'react-native'
 import supabase from '../components/Supabase'
+import { StackNavigationProp } from '@react-navigation/stack';
+import { useNavigation } from '@react-navigation/native';
+
+// Define navigation types
+ type RootStackParamList = {
+   HomeScreen: undefined;
+   AddSpotScreen: undefined;
+ };
+ type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'HomeScreen'>;
 
 export default function HomeScreen() {
   const [spots, setSpots] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const navigation = useNavigation<HomeScreenNavigationProp>()
 
   useEffect(() => {
     const fetchSpots = async () => {
@@ -16,7 +26,7 @@ export default function HomeScreen() {
         console.error('❌ Supabase error:', error.message)
         setError(error.message)
       } else {
-        console.log('✅ Data received:', data)
+        //console.log('✅ Data received:', data)
         setSpots(data || [])
       }
 
@@ -52,25 +62,20 @@ export default function HomeScreen() {
   }
 
   return (
-    <FlatList
-      data={spots}
-      keyExtractor={(item) => item.id.toString()}
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          {Array.isArray(item.image_url) && item.image_url.length > 0 ? (
-            <Image source={{ uri: item.image_url[0] }} style={styles.image} />
-          ) : typeof item.image_url === 'string' && item.image_url ? (
-            <Image source={{ uri: item.image_url }} style={styles.image} />
-          ) : (
-            <View style={[styles.image, styles.noImage]}>
-              <Text style={{ color: '#999' }}>No Image</Text>
-            </View>
-          )}
-          <Text style={styles.title}>{item.title}</Text>
-          <Text>{item.description}</Text>
-        </View>
-      )}
-    />
+    <SafeAreaView>
+      <Button title="Add Spot" onPress={() => navigation.navigate('AddSpotScreen')} />
+      <FlatList
+        data={spots}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Image source={{ uri: Array.isArray(item.image_url) ? item.image_url[0] : item.image_url }} style={styles.image} />
+            <Text style={styles.title}>{item.title}</Text>
+            <Text>{item.description}</Text>
+          </View>
+        )}
+      />
+    </SafeAreaView>
   )
 }
 
