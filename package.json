@@ -15,8 +15,10 @@
     "@react-navigation/stack": "^7.4.2",
     "@supabase/supabase-js": "^2.51.0",
     "expo": "~53.0.17",
+    "expo-image-picker": "~16.1.4",
     "expo-location": "~18.1.6",
     "expo-status-bar": "~2.2.3",
+    "lucide-react-native": "^0.539.0",
     "react": "19.0.0",
     "react-native": "0.79.5",
     "react-native-dropdown-picker": "^5.4.6",
@@ -24,8 +26,7 @@
     "react-native-maps": "1.20.1",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
-    "react-native-screens": "~4.11.1",
-    "expo-image-picker": "~16.1.4"
+    "react-native-screens": "~4.11.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
