@@ -8,6 +8,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import AddSpotScreen from './src/screens/AddSpotScreen';
 import MapPickerScreen from './src/screens/MapPicker';
 import MapSpotsScreen from './src/screens/MapSpotsScreen';
+import SpotDetailScreen from './src/screens/SpotDetailScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -16,6 +17,7 @@ function FeedStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ title: 'Spots' }} />
+      <Stack.Screen name="SpotDetailScreen" component={SpotDetailScreen} options={{ title: 'Spot' }} />
     </Stack.Navigator>
   );
 }

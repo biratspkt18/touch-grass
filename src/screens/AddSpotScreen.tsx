@@ -72,8 +72,10 @@ export default function AddSpotScreen() {
   }, [])
 
   const handleAddSpot = async () => {
-    if (!title || !description || !category || !tags || !latitude || !longitude) {
-      Alert.alert('Missing Fields', 'Please fill in all fields.')
+    // Title, a write-up, and a location are the essentials. Category, tags and
+    // an image are optional so a spot can be pinned quickly.
+    if (!title || !description || !latitude || !longitude) {
+      Alert.alert('Missing Fields', 'Please add a title, a description, and a location.')
       return
     }
     setLoading(true)
@@ -86,22 +88,21 @@ export default function AddSpotScreen() {
       }
       finalImageUrl = uploadedUrl
     }
-    if (!finalImageUrl) {
-      Alert.alert('Missing Image', 'Please pick or take an image.')
-      setLoading(false)
-      return
-    }
     const location = {
       latitude: parseFloat(latitude),
       longitude: parseFloat(longitude),
     }
+    const parsedTags = tags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean)
     const { error } = await supabase.from('Spots').insert([
       {
         title,
         description,
         category,
-        tags: tags.split(',').map(tag => tag.trim()),
-        image_url: [finalImageUrl],
+        tags: parsedTags,
+        image_url: finalImageUrl ? [finalImageUrl] : [],
         location,
       },
     ])

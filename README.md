@@ -5,18 +5,38 @@ Touch Grass lists all the attractions near your local area. Whether it be local 
 
 
 ### Tech Stack
-The application is made using expo and typescript with a supabase back end with no authentication right now.
+The application is made using Expo and TypeScript with a Supabase backend (no authentication yet).
 
-#### Future plans
-The plan for the finished application was a list of activities shown to the user in their location along with the ability to add your own spots. All of the spots will have their own categories. Categories currently aren't very finalised and the category is based on what it is. Each location also comes with tags. Tags can be anything from the vibes to activities that are available at the place. 
+### Features
+- **Feed** — browse your saved spots as cards with photo, category, and tags.
+- **Search & filter** — search across titles, descriptions, tags and vibes, and filter by category with the chip bar.
+- **Spot detail** — tap any spot to read its full write-up and see it pinned on a mini map.
+- **Map** — every pinned spot shown as a marker; tap a marker's callout to open its detail page.
+- **Add a spot** — title, description, category, tags, a photo, and a location you can pick from the map or your current position.
 
+### Backend setup (required)
+The app talks to a Supabase project. The original demo project is offline, so you
+need your own:
 
-Spots also have their own pictures and descriptions too. All of this will allow the user to view the things that they want to view. Search features can be implemented based on spots type and vibes.
-
+1. Create a project at [supabase.com](https://supabase.com).
+2. In the SQL editor, run [`supabase/schema.sql`](supabase/schema.sql). This
+   creates the `Spots` table, the category enum, the `get_category_enum_values`
+   RPC used by the Add-Spot form, the `location-images` storage bucket, and
+   anonymous read/insert policies.
+3. Copy `.env.example` to `.env` and fill in your project URL and anon key:
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   ```
 
 ### Running the application
-After making sure that the supabase backend is running:
-1. Clone the repo
-2. Run `npm run start` in order to run the program
-3. Scan the QR code given by the application and use tha app to its fullest
+1. Clone the repo and run `npm install`.
+2. Complete the **Backend setup** above.
+3. Run `npm run start` to start the Expo dev server.
+4. Scan the QR code with the Expo Go app (or press `i` / `a` for a simulator).
+
+#### Future plans
+- Authentication, so spots belong to a user.
+- Location-based sorting ("spots near me").
+- Multiple photos per spot and editing/deleting spots.
 
