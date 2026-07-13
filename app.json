@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.touch-grass"
+      "bundleIdentifier": "com.anonymous.touch-grass",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Touch Grass centers the map on where you are and lets you pin spots at your current location."
+      }
     },
     "android": {
       "adaptiveIcon": {
