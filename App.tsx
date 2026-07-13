@@ -55,23 +55,22 @@ function AddStack() {
 // Raised, gradient center button — the classic "post" affordance.
 function AddTabButton({ onPress }: { onPress?: (e: any) => void }) {
   return (
-    <View style={styles.addButtonWrap} pointerEvents="box-none">
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel="Add a spot"
-        activeOpacity={0.85}
-        onPress={onPress}
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Add a spot"
+      activeOpacity={0.85}
+      onPress={onPress}
+      style={styles.addButtonSlot}
+    >
+      <LinearGradient
+        colors={gradients.brand}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.addButton}
       >
-        <LinearGradient
-          colors={gradients.brand}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.addButton}
-        >
-          <Plus color="#fff" size={28} strokeWidth={2.6} />
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
+        <Plus color="#fff" size={28} strokeWidth={2.6} />
+      </LinearGradient>
+    </TouchableOpacity>
   );
 }
 
@@ -112,6 +111,7 @@ export default function App() {
       <StatusBar style="dark" />
       <NavigationContainer onReady={onReady}>
         <Tab.Navigator
+          initialRouteName="Map"
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: colors.primary,
@@ -120,32 +120,6 @@ export default function App() {
             tabBarItemStyle: { paddingTop: 8 },
           }}
         >
-          <Tab.Screen
-            name="Feed"
-            component={FeedStack}
-            options={{
-              tabBarIcon: ({ color, focused }) => (
-                <Home
-                  color={color}
-                  size={24}
-                  fill={focused ? color : 'transparent'}
-                  strokeWidth={focused ? 2 : 1.8}
-                />
-              ),
-              tabBarLabel: ({ focused }) => (
-                <TabLabel label="Feed" focused={focused} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Add"
-            component={AddStack}
-            options={{
-              tabBarLabel: () => null,
-              tabBarIcon: () => null,
-              tabBarButton: (props) => <AddTabButton onPress={props.onPress} />,
-            }}
-          />
           <Tab.Screen
             name="Map"
             component={MapSpotsScreen}
@@ -160,6 +134,32 @@ export default function App() {
               ),
               tabBarLabel: ({ focused }) => (
                 <TabLabel label="Map" focused={focused} />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Add"
+            component={AddStack}
+            options={{
+              tabBarLabel: () => null,
+              tabBarIcon: () => null,
+              tabBarButton: (props) => <AddTabButton onPress={props.onPress} />,
+            }}
+          />
+          <Tab.Screen
+            name="Feed"
+            component={FeedStack}
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <Home
+                  color={color}
+                  size={24}
+                  fill={focused ? color : 'transparent'}
+                  strokeWidth={focused ? 2 : 1.8}
+                />
+              ),
+              tabBarLabel: ({ focused }) => (
+                <TabLabel label="Feed" focused={focused} />
               ),
             }}
           />
@@ -185,23 +185,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
   },
-  addButtonWrap: {
-    top: -22,
-    justifyContent: 'center',
+  addButtonSlot: {
+    flex: 1,
     alignItems: 'center',
-    width: 72,
-  },
-  addButtonHit: {
-    borderRadius: radius.pill,
+    justifyContent: 'center',
   },
   addButton: {
-    width: 60,
-    height: 60,
+    width: 62,
+    height: 62,
     borderRadius: radius.pill,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
     borderColor: colors.surface,
+    transform: [{ translateY: -18 }],
     ...shadow.lifted,
   },
 });
