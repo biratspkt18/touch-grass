@@ -1,31 +1,63 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   RefreshControl,
+  Animated,
 } from 'react-native';
-import { Search, Plus } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Search, Compass } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SpotCard from '../components/SpotCard';
 import { fetchSpots } from '../lib/spots';
 import { Spot } from '../lib/types';
 import { isUsingDefaultBackend } from '../components/Supabase';
+import {
+  colors,
+  fonts,
+  gradients,
+  radius,
+  shadow,
+  spacing,
+  categoryFace,
+} from '../theme/theme';
 
 const ALL = '__all__';
 
-function prettyCategory(category: string): string {
-  return category.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+function FadeInItem({ index, children }: { index: number; children: React.ReactNode }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 380,
+      delay: Math.min(index, 8) * 55,
+      useNativeDriver: true,
+    }).start();
+  }, [anim, index]);
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [
+          { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
 }
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,8 +68,7 @@ export default function HomeScreen() {
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const data = await fetchSpots();
-      setSpots(data);
+      setSpots(await fetchSpots());
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -47,7 +78,6 @@ export default function HomeScreen() {
     }
   }, []);
 
-  // Refetch whenever the tab regains focus, so newly added spots appear.
   useFocusEffect(
     useCallback(() => {
       load();
@@ -65,47 +95,39 @@ export default function HomeScreen() {
     return spots.filter((s) => {
       if (activeCategory !== ALL && s.category !== activeCategory) return false;
       if (!q) return true;
-      const haystack = [
-        s.title,
-        s.description,
-        ...(s.tags ?? []),
-        s.category ?? '',
-      ]
+      const hay = [s.title, s.description, ...(s.tags ?? []), s.category ?? '']
         .join(' ')
         .toLowerCase();
-      return haystack.includes(q);
+      return hay.includes(q);
     });
   }, [spots, query, activeCategory]);
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#0EA5E9" />
-        <Text style={styles.message}>Loading spots...</Text>
-      </View>
-    );
-  }
+  const header = (
+    <View>
+      <LinearGradient
+        colors={gradients.brand}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + spacing.md }]}
+      >
+        <View style={styles.brandRow}>
+          <Text style={styles.brand}>Touch Grass</Text>
+          <Text style={styles.leaf}>🌱</Text>
+        </View>
+        <Text style={styles.tagline}>Places you've actually been.</Text>
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
         <View style={styles.searchBar}>
-          <Search color="#94A3B8" size={18} />
+          <Search color={colors.inkFaint} size={18} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search spots, tags, vibes..."
-            placeholderTextColor="#94A3B8"
+            placeholder="Search spots, tags, vibes…"
+            placeholderTextColor={colors.inkFaint}
             value={query}
             onChangeText={setQuery}
+            returnKeyType="search"
           />
         </View>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('Add')}
-        >
-          <Plus color="#fff" size={22} />
-        </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
       {categories.length > 0 ? (
         <ScrollView
@@ -116,16 +138,18 @@ export default function HomeScreen() {
         >
           {[ALL, ...categories].map((cat) => {
             const active = cat === activeCategory;
+            const face = cat === ALL ? null : categoryFace(cat);
             return (
-              <TouchableOpacity
+              <Pressable
                 key={cat}
-                style={[styles.chip, active && styles.chipActive]}
                 onPress={() => setActiveCategory(cat)}
+                style={[styles.chip, active && styles.chipActive]}
               >
+                {face ? <Text style={styles.chipEmoji}>{face.emoji}</Text> : null}
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {cat === ALL ? 'All' : prettyCategory(cat)}
+                  {cat === ALL ? 'All spots' : face!.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </ScrollView>
@@ -137,106 +161,178 @@ export default function HomeScreen() {
           <Text style={styles.noticeBody}>{error}</Text>
           {isUsingDefaultBackend ? (
             <Text style={styles.noticeBody}>
-              The app is using the built-in demo backend, which is offline. Set
-              EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in a
+              You're on the built-in demo backend, which is offline. Add
+              EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to a
               .env file to connect your own Supabase.
             </Text>
           ) : null}
         </View>
       ) : null}
+    </View>
+  );
 
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Finding your spots…</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={header}
         contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />
-        }
-        renderItem={({ item }) => (
-          <SpotCard
-            spot={item}
-            onPress={() =>
-              navigation.navigate('SpotDetailScreen', { spot: item })
-            }
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
+        }
+        renderItem={({ item, index }) => (
+          <FadeInItem index={index}>
+            <SpotCard
+              spot={item}
+              onPress={() =>
+                navigation.navigate('SpotDetailScreen', { spot: item })
+              }
+            />
+          </FadeInItem>
         )}
         ListEmptyComponent={
           !error ? (
-            <View style={styles.center}>
-              <Text style={styles.message}>
+            <View style={styles.empty}>
+              <View style={styles.emptyBadge}>
+                <Compass color={colors.primary} size={34} strokeWidth={1.8} />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {spots.length === 0 ? 'No spots yet' : 'Nothing matches'}
+              </Text>
+              <Text style={styles.emptyBody}>
                 {spots.length === 0
-                  ? 'No spots yet. Tap + to pin your first place.'
-                  : 'No spots match your search.'}
+                  ? 'Tap the + button to pin your first place and start your map.'
+                  : 'Try a different search or category.'}
               </Text>
             </View>
           ) : null
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  center: {
+  container: { flex: 1, backgroundColor: colors.bg },
+  loading: {
     flex: 1,
+    backgroundColor: colors.bg,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    gap: 12,
   },
-  message: { fontSize: 15, color: '#64748B', marginTop: 10, textAlign: 'center' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+  loadingText: { fontFamily: fonts.bodyMedium, color: colors.inkMuted, fontSize: 14 },
+  hero: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
+  },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  brand: { fontFamily: fonts.displayBold, fontSize: 28, color: '#fff' },
+  leaf: { fontSize: 22 },
+  tagline: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
   },
   searchBar: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
+    height: 48,
+    marginTop: spacing.lg,
+    ...shadow.soft,
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#0F172A' },
-  addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#0EA5E9',
-    justifyContent: 'center',
-    alignItems: 'center',
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 15,
+    color: colors.ink,
   },
   chipRow: { flexGrow: 0 },
-  chipRowContent: { paddingHorizontal: 16, paddingVertical: 8, gap: 8 },
+  chipRowContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xs,
+    gap: 8,
+  },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 9,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
-  chipActive: { backgroundColor: '#0EA5E9', borderColor: '#0EA5E9' },
-  chipText: { color: '#475569', fontWeight: '600', fontSize: 13 },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipEmoji: { fontSize: 14 },
+  chipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkMuted },
   chipTextActive: { color: '#fff' },
-  list: { padding: 16, paddingTop: 8, flexGrow: 1 },
-  notice: {
-    margin: 16,
-    marginTop: 4,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
+  list: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.huge,
+    flexGrow: 1,
   },
-  noticeTitle: { fontWeight: '700', color: '#B91C1C', marginBottom: 4 },
-  noticeBody: { color: '#7F1D1D', fontSize: 13, marginTop: 4, lineHeight: 18 },
+  notice: {
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.accentSoft,
+  },
+  noticeTitle: {
+    fontFamily: fonts.bodyBold,
+    color: colors.accentInk,
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  noticeBody: {
+    fontFamily: fonts.body,
+    color: colors.accentInk,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 4,
+  },
+  empty: { alignItems: 'center', paddingHorizontal: spacing.xxl, paddingTop: spacing.huge },
+  emptyBadge: {
+    width: 76,
+    height: 76,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  emptyTitle: { fontFamily: fonts.displayBold, fontSize: 20, color: colors.ink },
+  emptyBody: {
+    fontFamily: fonts.body,
+    fontSize: 14.5,
+    lineHeight: 22,
+    color: colors.inkMuted,
+    textAlign: 'center',
+    marginTop: 6,
+  },
 });

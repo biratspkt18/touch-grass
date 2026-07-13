@@ -6,6 +6,7 @@ import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { colors, fonts, radius, shadow } from '../theme/theme';
 
 type RootStackParamList = {
   HomeScreen: undefined;
@@ -72,7 +73,11 @@ export default function MapPickerScreen() {
   };
 
   if (!region) {
-    return <View style={styles.container}><Text>Loading map...</Text></View>;
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg }]}>
+        <Text style={styles.hintText}>Finding you on the map…</Text>
+      </View>
+    );
   }
 
   return (
@@ -88,8 +93,18 @@ export default function MapPickerScreen() {
         )}
       </MapView>
       {awaitingSelection && (
-        <TouchableOpacity style={styles.button} onPress={confirmLocation} disabled={!selectedLocation}>
-          <Text style={styles.buttonText}>Confirm Location</Text>
+        <View style={styles.hintBanner}>
+          <Text style={styles.hintText}>Tap the map to drop your pin 📍</Text>
+        </View>
+      )}
+      {awaitingSelection && (
+        <TouchableOpacity
+          style={[styles.button, !selectedLocation && styles.buttonDisabled]}
+          onPress={confirmLocation}
+          disabled={!selectedLocation}
+          activeOpacity={0.9}
+        >
+          <Text style={styles.buttonText}>Confirm location</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -99,13 +114,27 @@ export default function MapPickerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
+  hintBanner: {
+    position: 'absolute',
+    top: 60,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    ...shadow.soft,
+  },
+  hintText: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink },
   button: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 40,
     alignSelf: 'center',
-    backgroundColor: '#1e90ff',
-    padding: 12,
-    borderRadius: 10,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 28,
+    paddingVertical: 15,
+    borderRadius: radius.pill,
+    ...shadow.lifted,
   },
-  buttonText: { color: 'white', fontWeight: 'bold' },
+  buttonDisabled: { backgroundColor: colors.borderStrong },
+  buttonText: { fontFamily: fonts.bodyBlack, fontSize: 15, color: '#fff' },
 });
