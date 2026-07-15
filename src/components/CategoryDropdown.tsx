@@ -5,6 +5,7 @@ import { colors, fonts, radius, shadow } from '../theme/theme';
 type CategoryItem = {
   label: string;
   value: string;
+  icon?: () => React.JSX.Element;
 };
 
 type Props = {

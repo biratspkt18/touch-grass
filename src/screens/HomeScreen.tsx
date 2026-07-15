@@ -18,7 +18,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SpotCard from '../components/SpotCard';
 import { fetchSpots } from '../lib/spots';
 import { Spot } from '../lib/types';
-import { isUsingDefaultBackend } from '../components/Supabase';
+import { isBackendConfigured } from '../lib/backend';
 import {
   colors,
   fonts,
@@ -26,8 +26,8 @@ import {
   radius,
   shadow,
   spacing,
-  categoryFace,
 } from '../theme/theme';
+import { categoryStyle } from '../theme/categoryIcons';
 
 const ALL = '__all__';
 
@@ -95,7 +95,13 @@ export default function HomeScreen() {
     return spots.filter((s) => {
       if (activeCategory !== ALL && s.category !== activeCategory) return false;
       if (!q) return true;
-      const hay = [s.title, s.description, ...(s.tags ?? []), s.category ?? '']
+      const hay = [
+        s.title,
+        s.description,
+        ...(s.tags ?? []),
+        s.category ?? '',
+        s.profiles?.username ?? '',
+      ]
         .join(' ')
         .toLowerCase();
       return hay.includes(q);
@@ -138,16 +144,26 @@ export default function HomeScreen() {
         >
           {[ALL, ...categories].map((cat) => {
             const active = cat === activeCategory;
-            const face = cat === ALL ? null : categoryFace(cat);
+            const meta = cat === ALL ? null : categoryStyle(cat);
+            const activeColor = meta?.color ?? colors.primary;
             return (
               <Pressable
                 key={cat}
                 onPress={() => setActiveCategory(cat)}
-                style={[styles.chip, active && styles.chipActive]}
+                style={[
+                  styles.chip,
+                  active && { backgroundColor: activeColor, borderColor: activeColor },
+                ]}
               >
-                {face ? <Text style={styles.chipEmoji}>{face.emoji}</Text> : null}
+                {meta ? (
+                  <meta.Icon
+                    size={14}
+                    strokeWidth={2.2}
+                    color={active ? '#fff' : meta.color}
+                  />
+                ) : null}
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {cat === ALL ? 'All spots' : face!.label}
+                  {cat === ALL ? 'All spots' : meta!.label}
                 </Text>
               </Pressable>
             );
@@ -159,11 +175,10 @@ export default function HomeScreen() {
         <View style={styles.notice}>
           <Text style={styles.noticeTitle}>Couldn't load spots</Text>
           <Text style={styles.noticeBody}>{error}</Text>
-          {isUsingDefaultBackend ? (
+          {!isBackendConfigured ? (
             <Text style={styles.noticeBody}>
-              You're on the built-in demo backend, which is offline. Add
-              EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to a
-              .env file to connect your own Supabase.
+              No backend is configured. Copy .env.example to .env, fill in
+              your project's values, and restart the dev server.
             </Text>
           ) : null}
         </View>
@@ -288,8 +303,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipEmoji: { fontSize: 14 },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkMuted },
   chipTextActive: { color: '#fff' },
   list: {

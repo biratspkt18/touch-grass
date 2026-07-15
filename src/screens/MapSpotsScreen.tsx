@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ActivityIndicator,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -13,34 +12,61 @@ import MapView, { Marker, Callout, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Search } from 'lucide-react-native';
+import { Search, X, Trees } from 'lucide-react-native';
 import { fetchSpots } from '../lib/spots';
+import { fetchNearbyPlaces, NearbyPlace, MAX_LOOKUP_SPAN } from '../lib/places';
 import { Spot, getCoords } from '../lib/types';
-import { colors, fonts, radius, shadow, spacing, categoryFace } from '../theme/theme';
+import { loadStartRegion, saveStartRegion, WORLD_REGION } from '../lib/startRegion';
+import PlaceSearch, { Place } from '../components/PlaceSearch';
+import { colors, fonts, radius, shadow, spacing } from '../theme/theme';
+import { categoryStyle } from '../theme/categoryIcons';
 
-// Zoomed-out neutral view used only while no better center exists.
-const WORLD_REGION: Region = {
-  latitude: 20,
-  longitude: 0,
-  latitudeDelta: 100,
-  longitudeDelta: 100,
-};
+type LocatedSpot = { spot: Spot; coords: { latitude: number; longitude: number } };
+type SpotCluster = { key: string; coords: { latitude: number; longitude: number }; items: LocatedSpot[] };
+
+// Group spots into grid cells sized relative to the visible region, so pins
+// that would overlap at the current zoom merge into one numbered bubble.
+// Zooming in shrinks the cells until every spot stands alone again.
+function clusterSpots(located: LocatedSpot[], region: Region): SpotCluster[] {
+  const cellLat = region.latitudeDelta / 7;
+  const cellLng = region.longitudeDelta / 7;
+  const cells = new Map<string, LocatedSpot[]>();
+  for (const item of located) {
+    const key = `${Math.floor(item.coords.latitude / cellLat)}:${Math.floor(
+      item.coords.longitude / cellLng
+    )}`;
+    const bucket = cells.get(key);
+    if (bucket) bucket.push(item);
+    else cells.set(key, [item]);
+  }
+  return [...cells.entries()].map(([key, items]) => ({
+    key,
+    items,
+    coords: {
+      latitude: items.reduce((s, x) => s + x.coords.latitude, 0) / items.length,
+      longitude: items.reduce((s, x) => s + x.coords.longitude, 0) / items.length,
+    },
+  }));
+}
 
 export default function MapSpotsScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView>(null);
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Where the map should start: your location if you allow it, else the city
-  // you type, else wherever your pins are.
+  // Where the map starts: your location if allowed, else the city you picked
+  // last time (persisted), else a "pick a city" card.
   const [center, setCenter] = useState<Region | null>(null);
   const [resolvingLocation, setResolvingLocation] = useState(true);
   const [askCity, setAskCity] = useState(false);
-  const [city, setCity] = useState('');
-  const [cityError, setCityError] = useState<string | null>(null);
-  const [searchingCity, setSearchingCity] = useState(false);
+
+  // Parks & nature from OpenStreetMap for the visible area ("discover" layer).
+  const [nearby, setNearby] = useState<NearbyPlace[]>([]);
+  const [showNearby, setShowNearby] = useState(true);
+  const [viewRegion, setViewRegion] = useState<Region | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -62,73 +88,51 @@ export default function MapSpotsScreen() {
   useEffect(() => {
     (async () => {
       try {
+        const saved = await loadStartRegion();
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          // Last known fix is instant; fall back to a fresh read if absent.
-          const last = await Location.getLastKnownPositionAsync();
-          const pos =
-            last ??
-            (await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            }));
-          setCenter({
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            latitudeDelta: 0.08,
-            longitudeDelta: 0.08,
-          });
+          try {
+            // Last known fix is instant; fall back to a fresh read if absent.
+            const last = await Location.getLastKnownPositionAsync();
+            const pos =
+              last ??
+              (await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              }));
+            setCenter({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              latitudeDelta: 0.08,
+              longitudeDelta: 0.08,
+            });
+            return;
+          } catch {
+            // GPS unavailable — fall through to the saved city.
+          }
+        }
+        if (saved) {
+          setCenter(saved);
         } else {
           setAskCity(true);
         }
-      } catch {
-        setAskCity(true);
       } finally {
         setResolvingLocation(false);
       }
     })();
   }, []);
 
-  const submitCity = async () => {
-    const q = city.trim();
-    if (!q) return;
-    setSearchingCity(true);
-    setCityError(null);
-    try {
-      const results = await Location.geocodeAsync(q);
-      if (results.length > 0) {
-        setCenter({
-          latitude: results[0].latitude,
-          longitude: results[0].longitude,
-          latitudeDelta: 0.15,
-          longitudeDelta: 0.15,
-        });
-        setAskCity(false);
-      } else {
-        setCityError("Couldn't find that place — try another spelling?");
-      }
-    } catch {
-      setCityError('Search failed — check your connection and try again.');
-    } finally {
-      setSearchingCity(false);
-    }
+  const chooseCity = (place: Place) => {
+    const region: Region = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+      latitudeDelta: 0.12,
+      longitudeDelta: 0.12,
+    };
+    setCenter(region);
+    setViewRegion(region);
+    setAskCity(false);
+    saveStartRegion(region);
   };
-
-  if (loading || resolvingLocation) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.centerText}>Loading the map…</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Couldn't load spots: {error}</Text>
-      </View>
-    );
-  }
 
   const located = spots
     .map((s) => ({ spot: s, coords: getCoords(s) }))
@@ -150,23 +154,139 @@ export default function MapSpotsScreen() {
       : null;
 
   const initialRegion = center ?? spotsRegion ?? WORLD_REGION;
+
+  // What the user currently sees: their pans/zooms once they move the map,
+  // the starting region before that (and nothing while it's still resolving).
+  const lookupRegion =
+    viewRegion ?? (loading || resolvingLocation ? null : initialRegion);
+  const zoomedOut = !!lookupRegion && lookupRegion.latitudeDelta > MAX_LOOKUP_SPAN;
+
+  useEffect(() => {
+    if (!showNearby || !lookupRegion || zoomedOut) {
+      setNearby([]);
+      return;
+    }
+    const controller = new AbortController();
+    // Debounced so panning doesn't fire a request per frame.
+    const timer = setTimeout(async () => {
+      try {
+        setNearby(
+          await fetchNearbyPlaces(
+            {
+              south: lookupRegion.latitude - lookupRegion.latitudeDelta / 2,
+              north: lookupRegion.latitude + lookupRegion.latitudeDelta / 2,
+              west: lookupRegion.longitude - lookupRegion.longitudeDelta / 2,
+              east: lookupRegion.longitude + lookupRegion.longitudeDelta / 2,
+            },
+            controller.signal
+          )
+        );
+      } catch {
+        // Lookup is best-effort decoration; keep whatever is already shown.
+      }
+    }, 600);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [
+    showNearby,
+    zoomedOut,
+    lookupRegion?.latitude,
+    lookupRegion?.longitude,
+    lookupRegion?.latitudeDelta,
+  ]);
+
+  if (loading || resolvingLocation) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.centerText}>Loading the map…</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>Couldn't load spots: {error}</Text>
+      </View>
+    );
+  }
+
   // Remount the map when the chosen center changes so it actually re-centers.
   const mapKey = `${initialRegion.latitude.toFixed(4)},${initialRegion.longitude.toFixed(4)}`;
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         key={mapKey}
         style={styles.map}
         initialRegion={initialRegion}
+        onRegionChangeComplete={setViewRegion}
         showsUserLocation
       >
-        {located.map(({ spot, coords }) => {
-          const face = categoryFace(spot.category);
+        {showNearby
+          ? nearby.map((place) => {
+              const cat = categoryStyle(place.category);
+              return (
+                <Marker
+                  key={place.id}
+                  coordinate={place}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  tracksViewChanges={false}
+                >
+                  <View style={[styles.poiDot, { backgroundColor: cat.color }]} />
+                  <Callout tooltip>
+                    <View style={styles.callout}>
+                      <Text style={styles.calloutTitle} numberOfLines={1}>
+                        {place.name}
+                      </Text>
+                      <Text style={styles.calloutBody}>
+                        {cat.label} · via OpenStreetMap
+                      </Text>
+                      <Text style={styles.calloutLink}>
+                        Been here? Pin it with the + button
+                      </Text>
+                    </View>
+                  </Callout>
+                </Marker>
+              );
+            })
+          : null}
+        {clusterSpots(located, lookupRegion ?? initialRegion).map((cluster) => {
+          if (cluster.items.length > 1) {
+            return (
+              <Marker
+                key={cluster.key}
+                coordinate={cluster.coords}
+                anchor={{ x: 0.5, y: 0.5 }}
+                onPress={() => {
+                  const current = lookupRegion ?? initialRegion;
+                  mapRef.current?.animateToRegion(
+                    {
+                      ...cluster.coords,
+                      latitudeDelta: current.latitudeDelta / 4,
+                      longitudeDelta: current.longitudeDelta / 4,
+                    },
+                    350
+                  );
+                }}
+              >
+                <View style={styles.clusterBubble}>
+                  <Text style={styles.clusterCount}>{cluster.items.length}</Text>
+                </View>
+              </Marker>
+            );
+          }
+          const { spot, coords } = cluster.items[0];
+          const cat = categoryStyle(spot.category);
           return (
             <Marker
               key={spot.id}
               coordinate={coords}
+              pinColor={cat.color}
               onCalloutPress={() =>
                 navigation.navigate('Feed', {
                   screen: 'SpotDetailScreen',
@@ -174,10 +294,6 @@ export default function MapSpotsScreen() {
                 })
               }
             >
-              <View style={styles.pin}>
-                <Text style={styles.pinEmoji}>{face.emoji}</Text>
-                <View style={styles.pinTail} />
-              </View>
               <Callout tooltip>
                 <View style={styles.callout}>
                   <Text style={styles.calloutTitle} numberOfLines={1}>
@@ -197,12 +313,38 @@ export default function MapSpotsScreen() {
       </MapView>
 
       <View style={[styles.topBar, { paddingTop: insets.top + spacing.md }]}>
-        <Text style={styles.topTitle}>Your map 🗺️</Text>
-        <Text style={styles.topSubtitle}>
-          {located.length > 0
-            ? `${located.length} ${located.length === 1 ? 'spot' : 'spots'} pinned`
-            : 'No spots pinned yet'}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.topTitle}>Your map 🗺️</Text>
+          <Text style={styles.topSubtitle}>
+            {located.length > 0
+              ? `${located.length} ${located.length === 1 ? 'spot' : 'spots'} pinned`
+              : 'No spots pinned yet'}
+            {showNearby && zoomedOut ? ' · zoom in for parks' : ''}
+            {showNearby && !zoomedOut && nearby.length > 0
+              ? ` · ${nearby.length} green ${nearby.length === 1 ? 'spot' : 'spots'} nearby`
+              : ''}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.cityButton, showNearby && styles.nearbyButtonOn]}
+          onPress={() => setShowNearby((v) => !v)}
+          hitSlop={8}
+          accessibilityLabel={showNearby ? 'Hide nearby parks' : 'Show nearby parks'}
+        >
+          <Trees color={showNearby ? '#FFFFFF' : colors.ink} size={19} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.cityButton}
+          onPress={() => setAskCity((v) => !v)}
+          hitSlop={8}
+          accessibilityLabel="Change city"
+        >
+          {askCity ? (
+            <X color={colors.ink} size={19} />
+          ) : (
+            <Search color={colors.ink} size={19} />
+          )}
+        </TouchableOpacity>
       </View>
 
       {askCity ? (
@@ -214,39 +356,19 @@ export default function MapSpotsScreen() {
           <View style={styles.cityCard}>
             <Text style={styles.cityTitle}>Where should we start? 🧭</Text>
             <Text style={styles.cityBody}>
-              Location is off, no worries — type a city and we'll take you there.
+              Type a city or place — suggestions appear as you go.
             </Text>
-            <View style={styles.cityRow}>
-              <View style={styles.cityInputWrap}>
-                <Search color={colors.inkFaint} size={16} />
-                <TextInput
-                  style={styles.cityInput}
-                  value={city}
-                  onChangeText={setCity}
-                  placeholder="e.g. Melbourne, Tokyo, Kathmandu"
-                  placeholderTextColor={colors.inkFaint}
-                  returnKeyType="search"
-                  onSubmitEditing={submitCity}
-                  autoCapitalize="words"
-                />
-              </View>
-              <TouchableOpacity
-                style={[styles.cityGo, searchingCity && { opacity: 0.6 }]}
-                onPress={submitCity}
-                disabled={searchingCity}
-                activeOpacity={0.85}
-              >
-                {searchingCity ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.cityGoText}>Go</Text>
-                )}
-              </TouchableOpacity>
+            <View style={{ marginTop: spacing.lg }}>
+              <PlaceSearch
+                placeholder="e.g. Melbourne, Tokyo, Kathmandu"
+                onSelect={chooseCity}
+              />
             </View>
-            {cityError ? <Text style={styles.cityError}>{cityError}</Text> : null}
-            {spotsRegion ? (
+            {spotsRegion || center ? (
               <TouchableOpacity onPress={() => setAskCity(false)} hitSlop={8}>
-                <Text style={styles.citySkip}>Just show my pins</Text>
+                <Text style={styles.citySkip}>
+                  {center ? 'Never mind' : 'Just show my pins'}
+                </Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -281,29 +403,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     textAlign: 'center',
   },
-  pin: {
-    alignItems: 'center',
-  },
-  pinEmoji: {
-    fontSize: 20,
-    width: 42,
-    height: 42,
-    textAlign: 'center',
-    lineHeight: 42,
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: colors.primary,
-    ...shadow.soft,
-  },
-  pinTail: {
-    width: 3,
-    height: 8,
-    backgroundColor: colors.primary,
-    marginTop: -1,
-    borderRadius: 2,
-  },
   callout: {
     width: 220,
     backgroundColor: colors.surface,
@@ -330,6 +429,9 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     backgroundColor: 'rgba(255,255,255,0.86)',
@@ -338,6 +440,44 @@ const styles = StyleSheet.create({
   },
   topTitle: { fontFamily: fonts.displayBold, fontSize: 22, color: colors.ink },
   topSubtitle: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.inkMuted },
+  cityButton: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
+    ...shadow.soft,
+  },
+  nearbyButtonOn: {
+    backgroundColor: colors.primary,
+  },
+  clusterBubble: {
+    minWidth: 40,
+    height: 40,
+    paddingHorizontal: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadow.soft,
+  },
+  clusterCount: {
+    fontFamily: fonts.displayBold,
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  poiDot: {
+    width: 16,
+    height: 16,
+    borderRadius: radius.pill,
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    ...shadow.soft,
+  },
   cityCardWrap: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -356,40 +496,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.inkMuted,
     marginTop: 4,
-  },
-  cityRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  cityInputWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surfaceSunken,
-    height: 46,
-  },
-  cityInput: {
-    flex: 1,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  cityGo: {
-    width: 60,
-    height: 46,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cityGoText: { fontFamily: fonts.bodyBlack, fontSize: 15, color: '#fff' },
-  cityError: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 13,
-    color: colors.accentInk,
-    marginTop: spacing.sm,
   },
   citySkip: {
     fontFamily: fonts.bodyBold,

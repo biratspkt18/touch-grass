@@ -28,6 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>com.anonymous.touch-grass</string>
+          <string>touchgrass</string>
         </array>
       </dict>
     </array>

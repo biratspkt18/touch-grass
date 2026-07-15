@@ -2,24 +2,23 @@ import { useRef, useState } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   Pressable,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Heart } from 'lucide-react-native';
-import { Spot, getImageUrl } from '../lib/types';
+import { Image } from 'expo-image';
+import { Heart, MessageCircle } from 'lucide-react-native';
+import { Spot, getImageUrl, authorName, commentCount } from '../lib/types';
+import Avatar from './Avatar';
 import {
   colors,
   fonts,
-  gradients,
   radius,
   shadow,
   spacing,
-  categoryFace,
   relativeTime,
 } from '../theme/theme';
+import { categoryStyle } from '../theme/categoryIcons';
 
 export default function SpotCard({
   spot,
@@ -29,9 +28,11 @@ export default function SpotCard({
   onPress?: () => void;
 }) {
   const image = getImageUrl(spot);
-  const face = categoryFace(spot.category);
+  const cat = categoryStyle(spot.category);
   const tags = (spot.tags ?? []).filter(Boolean);
   const when = relativeTime(spot.created_at);
+  const author = authorName(spot);
+  const comments = commentCount(spot);
 
   const scale = useRef(new Animated.Value(1)).current;
   const heartScale = useRef(new Animated.Value(1)).current;
@@ -58,24 +59,24 @@ export default function SpotCard({
       <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
         <View style={styles.media}>
           {image ? (
-            <Image source={{ uri: image }} style={styles.image} />
+            <Image source={{ uri: image }} style={styles.image} transition={200} />
           ) : (
-            <LinearGradient colors={gradients.brand} style={styles.image}>
-              <Text style={styles.placeholderEmoji}>{face.emoji}</Text>
-            </LinearGradient>
+            <View style={[styles.image, { backgroundColor: cat.soft }]}>
+              <cat.Icon color={cat.color} size={52} strokeWidth={1.6} />
+            </View>
           )}
           <View style={styles.categoryChip}>
-            <Text style={styles.categoryEmoji}>{face.emoji}</Text>
-            <Text style={styles.categoryLabel}>{face.label}</Text>
+            <cat.Icon color={cat.color} size={13} strokeWidth={2.4} />
+            <Text style={styles.categoryLabel}>{cat.label}</Text>
           </View>
         </View>
 
         <View style={styles.body}>
           <View style={styles.authorRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarEmoji}>🌱</Text>
-            </View>
-            <Text style={styles.author}>You</Text>
+            <Avatar name={author ?? 'early explorer'} size={26} />
+            <Text style={styles.author}>
+              {author ? `@${author}` : 'Early explorer'}
+            </Text>
             {when ? <Text style={styles.dot}>·</Text> : null}
             {when ? <Text style={styles.time}>{when}</Text> : null}
           </View>
@@ -120,6 +121,12 @@ export default function SpotCard({
                 {liked ? 'Loved' : 'Love it'}
               </Text>
             </Pressable>
+            <View style={styles.commentHint}>
+              <MessageCircle size={18} color={colors.inkFaint} strokeWidth={2} />
+              <Text style={styles.commentHintText}>
+                {comments > 0 ? comments : 'Comment'}
+              </Text>
+            </View>
             <Text style={styles.readMore}>Read ›</Text>
           </View>
         </View>
@@ -144,7 +151,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderEmoji: { fontSize: 56 },
   categoryChip: {
     position: 'absolute',
     top: spacing.md,
@@ -158,19 +164,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     ...shadow.soft,
   },
-  categoryEmoji: { fontSize: 13 },
   categoryLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink },
   body: { padding: spacing.lg },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  avatar: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primarySoft,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarEmoji: { fontSize: 13 },
   author: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.ink },
   dot: { color: colors.inkFaint, fontFamily: fonts.bodyBold },
   time: { fontFamily: fonts.bodyMedium, fontSize: 12.5, color: colors.inkFaint },
@@ -208,5 +204,7 @@ const styles = StyleSheet.create({
   },
   likeButton: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   likeText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkFaint },
+  commentHint: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  commentHintText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkFaint },
   readMore: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.primary },
 });

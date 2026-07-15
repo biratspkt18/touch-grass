@@ -13,7 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'
-import supabase from '../components/Supabase'
+import { useAuth } from '../lib/auth'
+import { uploadImage } from '../lib/storage'
+import { addSpot, fetchCategories } from '../lib/spots'
 import CategoryDropdown from '../components/CategoryDropdown'
 import ImagePickerSection from '../components/ImagePickerSection'
 import LocationInputs from '../components/LocationInputs'
@@ -25,8 +27,8 @@ import {
   radius,
   shadow,
   spacing,
-  categoryFace,
 } from '../theme/theme'
+import { categoryStyle } from '../theme/categoryIcons'
 
 type RootStackParamList = {
   AddSpotScreen: {
@@ -41,18 +43,19 @@ type AddSpotRouteProp = RouteProp<RootStackParamList, 'AddSpotScreen'>
 type CategoryItem = {
   label: string
   value: string
+  icon?: () => React.JSX.Element
 }
 
 export default function AddSpotScreen() {
   const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'AddSpotScreen'>>()
   const route = useRoute<AddSpotRouteProp>()
   const insets = useSafeAreaInsets()
+  const { session } = useAuth()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState<string | null>(null)
   const [tags, setTags] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
-  const [localImage, setLocalImage] = useState<string | null>(null)
+  const [localImages, setLocalImages] = useState<string[]>([])
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
   const [loading, setLoading] = useState(false)
@@ -67,19 +70,19 @@ export default function AddSpotScreen() {
   }, [route.params])
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      const { data, error } = await supabase.rpc('get_category_enum_values')
-      if (error || !data) {
-        console.error('Failed to fetch categories:', error?.message)
-        return
-      }
-      const mapped: CategoryItem[] = (data as string[]).map((cat: string) => {
-        const face = categoryFace(cat)
-        return { label: `${face.emoji}  ${face.label}`, value: cat }
-      })
-      setCategories(mapped)
-    }
     fetchCategories()
+      .then((values) => {
+        const mapped: CategoryItem[] = values.map((cat) => {
+          const meta = categoryStyle(cat)
+          return {
+            label: meta.label,
+            value: cat,
+            icon: () => <meta.Icon color={meta.color} size={17} strokeWidth={2.2} />,
+          }
+        })
+        setCategories(mapped)
+      })
+      .catch((e) => console.error('Failed to fetch categories:', (e as Error).message))
   }, [])
 
   const hasLocation = !!latitude && !!longitude
@@ -92,40 +95,74 @@ export default function AddSpotScreen() {
       return
     }
     setLoading(true)
-    let finalImageUrl = imageUrl
-    if (localImage) {
-      const uploadedUrl = await uploadImageToSupabase(localImage)
-      if (!uploadedUrl) {
-        setLoading(false)
-        return
+    try {
+      // The storage wrapper compresses on-device and returns a path — the
+      // database never sees a full URL.
+      const imagePaths: string[] = []
+      for (const uri of localImages) {
+        imagePaths.push(await uploadImage(uri))
       }
-      finalImageUrl = uploadedUrl
-    }
-    const location = {
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
-    }
-    const parsedTags = tags
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(Boolean)
-    const { error } = await supabase.from('Spots').insert([
-      {
+      await addSpot({
         title,
         description,
         category,
-        tags: parsedTags,
-        image_url: finalImageUrl ? [finalImageUrl] : [],
-        location,
-      },
-    ])
-    setLoading(false)
-    if (error) {
-      Alert.alert('Error', error.message)
-    } else {
+        tags: tags
+          .split(',')
+          .map(tag => tag.trim())
+          .filter(Boolean),
+        imagePaths,
+        location: {
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+        },
+        userId: session!.user.id,
+      })
       Alert.alert('Pinned! 🌱', 'Your spot is on the map.')
       navigation.goBack()
+    } catch (e) {
+      Alert.alert('Error', (e as Error).message)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  // Pinning requires an account so spots carry their author's name.
+  if (!session) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={gradients.brand}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.header, { paddingTop: insets.top + spacing.md }]}
+        >
+          <Text style={styles.headerTitle}>Pin a spot ✨</Text>
+          <Text style={styles.headerSubtitle}>Share a place worth leaving the house for.</Text>
+        </LinearGradient>
+
+        <View style={styles.gate}>
+          <Text style={styles.gateEmoji}>🌱</Text>
+          <Text style={styles.gateTitle}>Sign in to pin spots</Text>
+          <Text style={styles.gateBody}>
+            Create an account so every spot you share has your name on it.
+          </Text>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => (navigation as any).navigate('You')}
+            style={styles.submitWrap}
+          >
+            <LinearGradient
+              colors={gradients.brand}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.submit}
+            >
+              <Text style={styles.submitText}>Sign in or join</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
   }
 
   return (
@@ -189,9 +226,8 @@ export default function AddSpotScreen() {
           <Text style={styles.hint}>Separate with commas — think vibes & activities.</Text>
 
           <ImagePickerSection
-            localImage={localImage}
-            setLocalImage={setLocalImage}
-            setImageUrl={setImageUrl}
+            localImages={localImages}
+            setLocalImages={setLocalImages}
             loading={loading}
           />
 
@@ -224,34 +260,6 @@ export default function AddSpotScreen() {
       </KeyboardAvoidingView>
     </View>
   )
-}
-
-const uploadImageToSupabase = async (uri: string): Promise<string | null> => {
-  try {
-    const ext = uri.split('.').pop()
-    const fileName = `spot_${Date.now()}.${ext}`
-    const response = await fetch(uri)
-    const blob = await response.blob()
-    const { error } = await supabase.storage.from('location-images').upload(fileName, blob, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: blob.type,
-    })
-    if (error) {
-      Alert.alert('Image Upload Error', error.message)
-      return null
-    }
-    const { data: publicUrlData } = supabase.storage.from('location-images').getPublicUrl(fileName)
-    if (publicUrlData?.publicUrl) {
-      return publicUrlData.publicUrl
-    } else {
-      Alert.alert('Error', 'Could not get public image URL')
-      return null
-    }
-  } catch (e) {
-    Alert.alert('Image Upload Error', (e as Error).message)
-    return null
-  }
 }
 
 const styles = StyleSheet.create({
@@ -294,6 +302,28 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     color: colors.inkFaint,
     marginTop: 6,
+  },
+  gate: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxxl,
+    paddingBottom: spacing.huge,
+  },
+  gateEmoji: { fontSize: 44, textAlign: 'center' },
+  gateTitle: {
+    fontFamily: fonts.displayBold,
+    fontSize: 22,
+    color: colors.ink,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
+  gateBody: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.inkMuted,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
   submitWrap: { marginTop: spacing.xxl, borderRadius: radius.md, ...shadow.soft },
   submit: {

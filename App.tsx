@@ -8,7 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as SplashScreen from 'expo-splash-screen';
-import { Home, Map as MapIcon, Plus } from 'lucide-react-native';
+import { Home, Map as MapIcon, Plus, UserRound } from 'lucide-react-native';
 import {
   useFonts,
   Fredoka_500Medium,
@@ -27,6 +27,8 @@ import AddSpotScreen from './src/screens/AddSpotScreen';
 import MapPickerScreen from './src/screens/MapPicker';
 import MapSpotsScreen from './src/screens/MapSpotsScreen';
 import SpotDetailScreen from './src/screens/SpotDetailScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import { AuthProvider } from './src/lib/auth';
 import { colors, fonts, gradients, radius, shadow } from './src/theme/theme';
 
 const Stack = createStackNavigator();
@@ -108,6 +110,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <AuthProvider>
       <StatusBar style="dark" />
       <NavigationContainer onReady={onReady}>
         <Tab.Navigator
@@ -138,15 +141,6 @@ export default function App() {
             }}
           />
           <Tab.Screen
-            name="Add"
-            component={AddStack}
-            options={{
-              tabBarLabel: () => null,
-              tabBarIcon: () => null,
-              tabBarButton: (props) => <AddTabButton onPress={props.onPress} />,
-            }}
-          />
-          <Tab.Screen
             name="Feed"
             component={FeedStack}
             options={{
@@ -163,8 +157,35 @@ export default function App() {
               ),
             }}
           />
+          <Tab.Screen
+            name="Add"
+            component={AddStack}
+            options={{
+              tabBarLabel: () => null,
+              tabBarIcon: () => null,
+              tabBarButton: (props) => <AddTabButton onPress={props.onPress} />,
+            }}
+          />
+          <Tab.Screen
+            name="You"
+            component={ProfileScreen}
+            options={{
+              tabBarIcon: ({ color, focused }) => (
+                <UserRound
+                  color={color}
+                  size={24}
+                  fill={focused ? color : 'transparent'}
+                  strokeWidth={focused ? 2 : 1.8}
+                />
+              ),
+              tabBarLabel: ({ focused }) => (
+                <TabLabel label="You" focused={focused} />
+              ),
+            }}
+          />
         </Tab.Navigator>
       </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
