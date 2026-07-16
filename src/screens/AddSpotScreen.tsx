@@ -11,7 +11,6 @@ import {
   Platform,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { LinearGradient } from 'expo-linear-gradient'
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native'
 import { useAuth } from '../lib/auth'
 import { uploadImage } from '../lib/storage'
@@ -23,7 +22,7 @@ import { StackNavigationProp } from '@react-navigation/stack'
 import {
   colors,
   fonts,
-  gradients,
+  hairline,
   radius,
   shadow,
   spacing,
@@ -85,8 +84,6 @@ export default function AddSpotScreen() {
       .catch((e) => console.error('Failed to fetch categories:', (e as Error).message))
   }, [])
 
-  const hasLocation = !!latitude && !!longitude
-
   const handleAddSpot = async () => {
     // Title, a write-up, and a location are the essentials. Category, tags and
     // an image are optional so a spot can be pinned quickly.
@@ -130,15 +127,10 @@ export default function AddSpotScreen() {
   if (!session) {
     return (
       <View style={styles.container}>
-        <LinearGradient
-          colors={gradients.brand}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-        >
-          <Text style={styles.headerTitle}>Pin a spot ✨</Text>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+          <Text style={styles.headerTitle}>Pin a spot</Text>
           <Text style={styles.headerSubtitle}>Share a place worth leaving the house for.</Text>
-        </LinearGradient>
+        </View>
 
         <View style={styles.gate}>
           <Text style={styles.gateEmoji}>🌱</Text>
@@ -148,17 +140,12 @@ export default function AddSpotScreen() {
           </Text>
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => (navigation as any).navigate('You')}
+            onPress={() => (navigation as any).navigate('Profile')}
             style={styles.submitWrap}
           >
-            <LinearGradient
-              colors={gradients.brand}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.submit}
-            >
+            <View style={styles.submit}>
               <Text style={styles.submitText}>Sign in or join</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -167,15 +154,10 @@ export default function AddSpotScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={gradients.brand}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-      >
-        <Text style={styles.headerTitle}>Pin a spot ✨</Text>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <Text style={styles.headerTitle}>Pin a spot</Text>
         <Text style={styles.headerSubtitle}>Share a place worth leaving the house for.</Text>
-      </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -245,16 +227,11 @@ export default function AddSpotScreen() {
             disabled={loading}
             style={styles.submitWrap}
           >
-            <LinearGradient
-              colors={gradients.brand}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.submit, loading && { opacity: 0.7 }]}
-            >
+            <View style={[styles.submit, loading && { opacity: 0.7 }]}>
               <Text style={styles.submitText}>
-                {loading ? 'Pinning…' : hasLocation ? 'Pin this spot 🌱' : 'Pin this spot'}
+                {loading ? 'Pinning…' : 'Pin this spot'}
               </Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -266,15 +243,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.border,
   },
-  headerTitle: { fontFamily: fonts.displayBold, fontSize: 26, color: '#fff' },
+  headerTitle: { fontFamily: fonts.displayBold, fontSize: 26, color: colors.ink },
   headerSubtitle: {
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    color: colors.inkMuted,
     marginTop: 2,
   },
   scroll: { padding: spacing.xl, paddingBottom: spacing.huge },
@@ -330,6 +308,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: radius.md,
     alignItems: 'center',
+    backgroundColor: colors.primary,
   },
   submitText: { fontFamily: fonts.bodyBlack, fontSize: 16, color: '#fff' },
 })

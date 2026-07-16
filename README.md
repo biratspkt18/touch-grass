@@ -10,13 +10,13 @@ The application is made using Expo and TypeScript with a Supabase backend (Supab
 ### Features
 - **Accounts** — sign in with Google or create an account with email + password (you pick your username); sessions persist across app restarts. Browsing is open to everyone, but pinning spots and commenting require an account.
 - **Private-by-default photos** — every photo is resized (max 1080px), recompressed (~150–300KB) and stripped of EXIF/GPS metadata on the phone before upload; the original never leaves the device.
-- **Feed** — browse everyone's spots as cards with photo, category, tags, author, and comment count.
+- **Feed ("Near you")** — everyone's spots as photo-forward cards; when location is allowed, the closest pins come first and each card shows how far away it is.
 - **Search & filter** — search across titles, descriptions, tags and vibes, and filter by category with the chip bar.
 - **Spot detail** — tap any spot to read its full write-up, see it pinned on a mini map, and join the comments (long-press one of your own comments to delete it).
 - **Map** — every pinned spot shown as a marker; tap a marker's callout to open its detail page.
 - **Discover green spots** — parks, gardens, playgrounds, nature reserves, beaches and viewpoints from OpenStreetMap (free Overpass API, no key) appear as small dots for the visible map area; toggle them with the tree button. Tap a dot to see its name — been there? Pin it yourself.
 - **Add a spot** — title, description, category, tags, up to 5 photos, and a location you can pick from the map or your current position. Spots are published under your username.
-- **You tab** — your profile, the spots you've pinned, and sign out.
+- **Profile** — tap your avatar in the top-right of the map or feed: your identity, the spots you've pinned, and sign out.
 
 ### Backend setup (required)
 The app talks to a Supabase project. The original demo project is offline, so you

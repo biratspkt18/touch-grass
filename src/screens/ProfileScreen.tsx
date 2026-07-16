@@ -16,9 +16,8 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { LogOut, MapPin } from 'lucide-react-native';
+import { ChevronLeft, LogOut, MapPin } from 'lucide-react-native';
 import { useAuth } from '../lib/auth';
 import { fetchSpotsByUser } from '../lib/spots';
 import { Spot, commentCount } from '../lib/types';
@@ -26,7 +25,7 @@ import Avatar from '../components/Avatar';
 import {
   colors,
   fonts,
-  gradients,
+  hairline,
   radius,
   shadow,
   spacing,
@@ -53,6 +52,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 function AuthView() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -116,17 +116,20 @@ function AuthView() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={gradients.brand}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={styles.backButton}
+          accessibilityLabel="Back"
+        >
+          <ChevronLeft color={colors.ink} size={24} />
+        </Pressable>
         <Text style={styles.headerTitle}>Join the club 🌱</Text>
         <Text style={styles.headerSubtitle}>
           An account puts your name on your spots — and in the conversation.
         </Text>
-      </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -148,16 +151,11 @@ function AuthView() {
             disabled={!!busy}
             style={styles.submitWrap}
           >
-            <LinearGradient
-              colors={gradients.brand}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.submit, busy === 'google' && { opacity: 0.7 }]}
-            >
+            <View style={[styles.submit, busy === 'google' && { opacity: 0.7 }]}>
               <Text style={styles.submitText}>
                 {busy === 'google' ? 'Opening Google…' : 'Continue with Google'}
               </Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
 
           <View style={styles.divider}>
@@ -282,12 +280,15 @@ function ProfileView() {
 
   const header = (
     <View>
-      <LinearGradient
-        colors={gradients.brand}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + spacing.md }]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          style={styles.backButton}
+          accessibilityLabel="Back"
+        >
+          <ChevronLeft color={colors.ink} size={24} />
+        </Pressable>
         <View style={styles.identityRow}>
           <Avatar name={username} size={56} />
           <View style={{ flex: 1 }}>
@@ -300,10 +301,10 @@ function ProfileView() {
             style={styles.signOutButton}
             accessibilityLabel="Sign out"
           >
-            <LogOut color="#fff" size={18} />
+            <LogOut color={colors.ink} size={18} />
           </Pressable>
         </View>
-      </LinearGradient>
+      </View>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Your spots</Text>
@@ -347,9 +348,9 @@ function MySpotRow({ spot, navigation }: { spot: Spot; navigation: any }) {
   return (
     <Pressable
       onPress={() =>
-        navigation.navigate('Feed', {
-          screen: 'SpotDetailScreen',
-          params: { spot },
+        navigation.navigate('Tabs', {
+          screen: 'Feed',
+          params: { screen: 'SpotDetailScreen', params: { spot } },
         })
       }
       style={styles.spotRow}
@@ -382,15 +383,25 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.surface,
+    borderBottomWidth: hairline,
+    borderBottomColor: colors.border,
   },
-  headerTitle: { fontFamily: fonts.displayBold, fontSize: 26, color: '#fff' },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSunken,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  headerTitle: { fontFamily: fonts.displayBold, fontSize: 26, color: colors.ink },
   headerSubtitle: {
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    color: colors.inkMuted,
     marginTop: 2,
   },
 
@@ -480,23 +491,28 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   submitWrap: { marginTop: spacing.xxl, borderRadius: radius.md, ...shadow.soft },
-  submit: { paddingVertical: 16, borderRadius: radius.md, alignItems: 'center' },
+  submit: {
+    paddingVertical: 16,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+  },
   submitText: { fontFamily: fonts.bodyBlack, fontSize: 16, color: '#fff' },
 
   // Profile
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  identityName: { fontFamily: fonts.displayBold, fontSize: 22, color: '#fff' },
+  identityName: { fontFamily: fonts.displayBold, fontSize: 22, color: colors.ink },
   identityEmail: {
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.inkMuted,
     marginTop: 1,
   },
   signOutButton: {
     width: 38,
     height: 38,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: colors.surfaceSunken,
     justifyContent: 'center',
     alignItems: 'center',
   },

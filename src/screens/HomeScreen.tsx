@@ -1,3 +1,7 @@
+// The feed: new posts near you. White chrome, photo-forward cards; when we
+// know where you are, the closest fresh pins come first and each card says
+// how far away it is.
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -12,21 +16,16 @@ import {
   Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { Search, Compass } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import SpotCard from '../components/SpotCard';
+import ProfileButton from '../components/ProfileButton';
 import { fetchSpots } from '../lib/spots';
-import { Spot } from '../lib/types';
+import { Spot, getCoords, SpotLocation } from '../lib/types';
+import { distanceKm, formatDistance } from '../lib/geo';
 import { isBackendConfigured } from '../lib/backend';
-import {
-  colors,
-  fonts,
-  gradients,
-  radius,
-  shadow,
-  spacing,
-} from '../theme/theme';
+import { colors, fonts, radius, spacing } from '../theme/theme';
 import { categoryStyle } from '../theme/categoryIcons';
 
 const ALL = '__all__';
@@ -64,6 +63,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
+  const [here, setHere] = useState<SpotLocation | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -84,6 +84,28 @@ export default function HomeScreen() {
     }, [load])
   );
 
+  // Where the reader is. Uses the permission the map tab already asked for —
+  // never prompts from the feed; without it the feed simply shows newest first.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const pos =
+          (await Location.getLastKnownPositionAsync()) ??
+          (await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          }));
+        setHere({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+      } catch {
+        // No fix — recency order is a fine fallback.
+      }
+    })();
+  }, []);
+
   const categories = useMemo(() => {
     const set = new Set<string>();
     spots.forEach((s) => s.category && set.add(s.category));
@@ -92,7 +114,7 @@ export default function HomeScreen() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return spots.filter((s) => {
+    const matches = spots.filter((s) => {
       if (activeCategory !== ALL && s.category !== activeCategory) return false;
       if (!q) return true;
       const hay = [
@@ -106,21 +128,37 @@ export default function HomeScreen() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [spots, query, activeCategory]);
+    if (!here) return matches; // newest first, as fetched
+    return matches
+      .map((spot) => {
+        const coords = getCoords(spot);
+        return { spot, km: coords ? distanceKm(here, coords) : Infinity };
+      })
+      .sort((a, b) => a.km - b.km)
+      .map((x) => x.spot);
+  }, [spots, query, activeCategory, here]);
+
+  const distanceFor = useCallback(
+    (spot: Spot) => {
+      if (!here) return null;
+      const coords = getCoords(spot);
+      return coords ? formatDistance(distanceKm(here, coords)) : null;
+    },
+    [here]
+  );
 
   const header = (
     <View>
-      <LinearGradient
-        colors={gradients.brand}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: insets.top + spacing.md }]}
-      >
-        <View style={styles.brandRow}>
-          <Text style={styles.brand}>Touch Grass</Text>
-          <Text style={styles.leaf}>🌱</Text>
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.titleRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Near you</Text>
+            <Text style={styles.subtitle}>
+              {here ? 'The closest fresh pins first' : 'The newest pins first'}
+            </Text>
+          </View>
+          <ProfileButton />
         </View>
-        <Text style={styles.tagline}>Places you've actually been.</Text>
 
         <View style={styles.searchBar}>
           <Search color={colors.inkFaint} size={18} />
@@ -133,7 +171,7 @@ export default function HomeScreen() {
             returnKeyType="search"
           />
         </View>
-      </LinearGradient>
+      </View>
 
       {categories.length > 0 ? (
         <ScrollView
@@ -145,21 +183,17 @@ export default function HomeScreen() {
           {[ALL, ...categories].map((cat) => {
             const active = cat === activeCategory;
             const meta = cat === ALL ? null : categoryStyle(cat);
-            const activeColor = meta?.color ?? colors.primary;
             return (
               <Pressable
                 key={cat}
                 onPress={() => setActiveCategory(cat)}
-                style={[
-                  styles.chip,
-                  active && { backgroundColor: activeColor, borderColor: activeColor },
-                ]}
+                style={[styles.chip, active && styles.chipActive]}
               >
                 {meta ? (
                   <meta.Icon
                     size={14}
                     strokeWidth={2.2}
-                    color={active ? '#fff' : meta.color}
+                    color={active ? colors.primaryInk : colors.inkMuted}
                   />
                 ) : null}
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
@@ -215,6 +249,7 @@ export default function HomeScreen() {
           <FadeInItem index={index}>
             <SpotCard
               spot={item}
+              distanceLabel={distanceFor(item)}
               onPress={() =>
                 navigation.navigate('SpotDetailScreen', { spot: item })
               }
@@ -253,31 +288,33 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: { fontFamily: fonts.bodyMedium, color: colors.inkMuted, fontSize: 14 },
-  hero: {
+  topBar: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    borderBottomLeftRadius: radius.xl,
-    borderBottomRightRadius: radius.xl,
+    paddingBottom: spacing.sm,
   },
-  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  brand: { fontFamily: fonts.displayBold, fontSize: 28, color: '#fff' },
-  leaf: { fontSize: 22 },
-  tagline: {
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  title: { fontFamily: fonts.displayBold, fontSize: 26, color: colors.ink },
+  subtitle: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
+    fontSize: 13.5,
+    color: colors.inkMuted,
+    marginTop: 1,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceSunken,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
-    height: 48,
+    height: 46,
     marginTop: spacing.lg,
-    ...shadow.soft,
   },
   searchInput: {
     flex: 1,
@@ -287,9 +324,8 @@ const styles = StyleSheet.create({
   },
   chipRow: { flexGrow: 0 },
   chipRowContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xs,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     gap: 8,
   },
   chip: {
@@ -303,15 +339,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  chipActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
   chipText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.inkMuted },
-  chipTextActive: { color: '#fff' },
+  chipTextActive: { color: colors.primaryInk },
   list: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.huge,
     flexGrow: 1,
   },
   notice: {
-    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
     padding: spacing.lg,
     borderRadius: radius.md,
     backgroundColor: colors.accentSoft,

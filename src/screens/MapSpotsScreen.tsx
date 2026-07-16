@@ -18,6 +18,7 @@ import { fetchNearbyPlaces, NearbyPlace, MAX_LOOKUP_SPAN } from '../lib/places';
 import { Spot, getCoords } from '../lib/types';
 import { loadStartRegion, saveStartRegion, WORLD_REGION } from '../lib/startRegion';
 import PlaceSearch, { Place } from '../components/PlaceSearch';
+import ProfileButton from '../components/ProfileButton';
 import { colors, fonts, radius, shadow, spacing } from '../theme/theme';
 import { categoryStyle } from '../theme/categoryIcons';
 
@@ -312,21 +313,10 @@ export default function MapSpotsScreen() {
         })}
       </MapView>
 
-      <View style={[styles.topBar, { paddingTop: insets.top + spacing.md }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.topTitle}>Your map 🗺️</Text>
-          <Text style={styles.topSubtitle}>
-            {located.length > 0
-              ? `${located.length} ${located.length === 1 ? 'spot' : 'spots'} pinned`
-              : 'No spots pinned yet'}
-            {showNearby && zoomedOut ? ' · zoom in for parks' : ''}
-            {showNearby && !zoomedOut && nearby.length > 0
-              ? ` · ${nearby.length} green ${nearby.length === 1 ? 'spot' : 'spots'} nearby`
-              : ''}
-          </Text>
-        </View>
+      <View style={[styles.floatingControls, { top: insets.top + spacing.md }]}>
+        <ProfileButton />
         <TouchableOpacity
-          style={[styles.cityButton, showNearby && styles.nearbyButtonOn]}
+          style={[styles.roundButton, showNearby && styles.nearbyButtonOn]}
           onPress={() => setShowNearby((v) => !v)}
           hitSlop={8}
           accessibilityLabel={showNearby ? 'Hide nearby parks' : 'Show nearby parks'}
@@ -334,7 +324,7 @@ export default function MapSpotsScreen() {
           <Trees color={showNearby ? '#FFFFFF' : colors.ink} size={19} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.cityButton}
+          style={styles.roundButton}
           onPress={() => setAskCity((v) => !v)}
           hitSlop={8}
           accessibilityLabel="Change city"
@@ -424,30 +414,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 8,
   },
-  topBar: {
+  floatingControls: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    right: spacing.lg,
+    alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
-    backgroundColor: 'rgba(255,255,255,0.86)',
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
   },
-  topTitle: { fontFamily: fonts.displayBold, fontSize: 22, color: colors.ink },
-  topSubtitle: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.inkMuted },
-  cityButton: {
-    width: 38,
-    height: 38,
+  roundButton: {
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
     ...shadow.soft,
   },
   nearbyButtonOn: {

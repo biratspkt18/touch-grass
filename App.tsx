@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useCallback } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,7 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as SplashScreen from 'expo-splash-screen';
-import { Home, Map as MapIcon, Plus, UserRound } from 'lucide-react-native';
+import { Home, Map as MapIcon, Plus } from 'lucide-react-native';
 import {
   useFonts,
   Fredoka_500Medium,
@@ -32,6 +32,7 @@ import { AuthProvider } from './src/lib/auth';
 import { colors, fonts, gradients, radius, shadow } from './src/theme/theme';
 
 const Stack = createStackNavigator();
+const RootStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -113,80 +114,74 @@ export default function App() {
       <AuthProvider>
       <StatusBar style="dark" />
       <NavigationContainer onReady={onReady}>
-        <Tab.Navigator
-          initialRouteName="Map"
-          screenOptions={{
-            headerShown: false,
-            tabBarActiveTintColor: colors.primary,
-            tabBarInactiveTintColor: colors.inkFaint,
-            tabBarStyle: styles.tabBar,
-            tabBarItemStyle: { paddingTop: 8 },
-          }}
-        >
-          <Tab.Screen
-            name="Map"
-            component={MapSpotsScreen}
-            options={{
-              tabBarIcon: ({ color, focused }) => (
-                <MapIcon
-                  color={color}
-                  size={24}
-                  fill={focused ? color : 'transparent'}
-                  strokeWidth={focused ? 2 : 1.8}
-                />
-              ),
-              tabBarLabel: ({ focused }) => (
-                <TabLabel label="Map" focused={focused} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Feed"
-            component={FeedStack}
-            options={{
-              tabBarIcon: ({ color, focused }) => (
-                <Home
-                  color={color}
-                  size={24}
-                  fill={focused ? color : 'transparent'}
-                  strokeWidth={focused ? 2 : 1.8}
-                />
-              ),
-              tabBarLabel: ({ focused }) => (
-                <TabLabel label="Feed" focused={focused} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Add"
-            component={AddStack}
-            options={{
-              tabBarLabel: () => null,
-              tabBarIcon: () => null,
-              tabBarButton: (props) => <AddTabButton onPress={props.onPress} />,
-            }}
-          />
-          <Tab.Screen
-            name="You"
-            component={ProfileScreen}
-            options={{
-              tabBarIcon: ({ color, focused }) => (
-                <UserRound
-                  color={color}
-                  size={24}
-                  fill={focused ? color : 'transparent'}
-                  strokeWidth={focused ? 2 : 1.8}
-                />
-              ),
-              tabBarLabel: ({ focused }) => (
-                <TabLabel label="You" focused={focused} />
-              ),
-            }}
-          />
-        </Tab.Navigator>
+        <RootStack.Navigator screenOptions={{ headerShown: false }}>
+          <RootStack.Screen name="Tabs" component={Tabs} />
+          <RootStack.Screen name="Profile" component={ProfileScreen} />
+        </RootStack.Navigator>
       </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>
+  );
+}
+
+// Profile lives above the tabs (opened from the avatar button top-right),
+// so the bottom bar stays three items: Map · Add · Feed.
+function Tabs() {
+  return (
+    <Tab.Navigator
+      initialRouteName="Map"
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.inkFaint,
+        tabBarStyle: styles.tabBar,
+        tabBarItemStyle: { paddingTop: 8 },
+      }}
+    >
+      <Tab.Screen
+        name="Map"
+        component={MapSpotsScreen}
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <MapIcon
+              color={color}
+              size={24}
+              fill={focused ? color : 'transparent'}
+              strokeWidth={focused ? 2 : 1.8}
+            />
+          ),
+          tabBarLabel: ({ focused }) => (
+            <TabLabel label="Map" focused={focused} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Add"
+        component={AddStack}
+        options={{
+          tabBarLabel: () => null,
+          tabBarIcon: () => null,
+          tabBarButton: (props) => <AddTabButton onPress={props.onPress} />,
+        }}
+      />
+      <Tab.Screen
+        name="Feed"
+        component={FeedStack}
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <Home
+              color={color}
+              size={24}
+              fill={focused ? color : 'transparent'}
+              strokeWidth={focused ? 2 : 1.8}
+            />
+          ),
+          tabBarLabel: ({ focused }) => (
+            <TabLabel label="Feed" focused={focused} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
   );
 }
 

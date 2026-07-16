@@ -345,19 +345,14 @@ export default function SpotDetailScreen() {
               pressed && { transform: [{ scale: 0.94 }] },
             ]}
           >
-            <LinearGradient
-              colors={gradients.brand}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.sendGradient}
-            >
+            <View style={styles.sendCircle}>
               <Send color="#fff" size={17} strokeWidth={2.2} />
-            </LinearGradient>
+            </View>
           </Pressable>
         </View>
       ) : (
         <Pressable
-          onPress={() => navigation.navigate('You')}
+          onPress={() => navigation.navigate('Profile')}
           style={[styles.signInBar, { paddingBottom: spacing.md }]}
         >
           <Text style={styles.signInBarText}>
@@ -543,10 +538,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   sendButton: { borderRadius: radius.pill, ...shadow.soft },
-  sendGradient: {
+  sendCircle: {
     width: 42,
     height: 42,
     borderRadius: radius.pill,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
